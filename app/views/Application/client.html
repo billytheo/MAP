@@ -1,0 +1,386 @@
+#{extends 'simpledesign.html' /}
+ 
+#{set title:'Welcome to our application! Press the button below the map to start sending information' /}
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style type="text/css">
+      html { height: 50% }
+      body { height: 100%; margin: 0; padding: 0 }
+      #map_canvas { height: 100% }
+    </style>   
+    
+    <script type="text/javascript">
+    var WsClient = null;
+    var servURI = "ws://localhost:9000/helloSocket";
+    var tid = "undefined1";
+    var latitude = "undefined2";
+    var longitude = "undefined3";
+    var latitude2 = "undefined42";
+    var longitude2 = "undefined43";
+    var speed = "undefined4";
+    var t2;
+    var t3;
+    var t4;
+    var i = 0;
+    var pi = 0;
+    //interval in ms
+    var interval = 1000;
+    var packSize = 10;
+    var step = interval / packSize;
+    var j = 0;
+    var locations = {"locations": [   ]};
+    var marker;
+    var num = 0;
+    var map = null;
+    var pos = null;
+    var ft = 0;
+    var markImage = "MOVE";
+    var accelerationX = 0;
+    var accelerationY = 0;
+    var accelerationZ = 0;
+    var grAccelerationX = 0;
+    var grAccelerationY = 0;
+    var grAccelerationZ = 0;
+    var rotationAlpha = 0;
+    var rotationBeta = 0;
+    var rotationGamma = 0;
+    var image = 'public/images/blue-dot.png';
+    var infowindow = null;
+    
+    
+    
+    
+    
+    
+    
+  
+
+function foo()
+{;}
+
+function roundNumber(num, dec) {
+	var result = Math.round(num*Math.pow(10,dec))/Math.pow(10,dec);
+	return result;
+}
+
+
+<!-- get position function  -->
+
+function getPosition()
+  {
+  if (navigator.geolocation)
+    {
+    navigator.geolocation.getCurrentPosition(showPosition,handle_errors);
+    navigator.geolocation.watchPosition(showPosition, handle_errors, {enableHighAccuracy:true, maximumAge:30000, timeout:27000});
+    }
+  else{demo2.innerHTML="Geolocation is not supported by this browser.";}
+  }
+
+function handle_errors(error)  
+{  
+    switch(error.code)  
+    {  
+        case error.PERMISSION_DENIED: alert("user did not share geolocation data");  
+        break;  
+
+        case error.POSITION_UNAVAILABLE: alert("could not detect current position");  
+        break;  
+
+        case error.TIMEOUT: alert("retrieving position timed out");  
+        break;  
+
+        default: alert("unknown error");  
+        break;  
+    }  
+}  
+
+function showPosition(position)
+  {
+  latitude = position.coords.latitude;
+  longitude = position.coords.longitude;
+  speed = position.coords.speed;
+  document.getElementById("demo").innerHTML="Your Latitude: " + position.coords.latitude + 
+  "<br />Your Longitude: " + position.coords.longitude; 
+ 
+  }
+
+ // "<br />Timestamp: " + position.timestamp;	
+ // };
+  
+  <!-- end of get position function  -->
+  
+  
+  
+  <!-- get acceleration function  -->
+  function getAcceleration(){
+	  if (window.DeviceMotionEvent==undefined) {
+		  accelerationX = "undef1";
+		    accelerationY = "undef2";
+		    accelerationZ = "undef3";
+		    grAccelerationX = "undef4";
+		    grAccelerationY = "undef5";
+		    grAccelerationZ = "undef6";
+		    rotationAlpha = "undef7";
+		    rotationBeta = "undef8";
+		    rotationGamma = "undef9";
+		  
+		  demo3.innerHTML="Accelerationation is not supported by this browser.";
+		} 
+		else {
+			window.ondevicemotion = function(event) {
+				grAccelerationX = roundNumber((accelerationX + event.acceleration.x)/2 * 0.02 + grAccelerationX,1);
+				grAccelerationY = roundNumber((accelerationY + event.acceleration.y)/2 * 0.02 + grAccelerationY,1);
+				grAccelerationZ = roundNumber((accelerationZ + event.acceleration.z)/2 * 0.02 + grAccelerationZ,1);
+			
+				accelerationX = (roundNumber(event.accelerationIncludingGravity.x,1));
+				accelerationY = (roundNumber(event.accelerationIncludingGravity.y,1));
+				accelerationZ = (roundNumber(event.accelerationIncludingGravity.z,1));
+					
+//				ai = Math.round(event.interval * 100) / 100;
+//				rR = event.rotationRate;
+//				if (rR != null) {
+//					arAlpha = roundNumber(rR.alpha,0);
+//					arBeta = roundNumber(rR.beta,0);
+//					arGamma = roundNumber(rR.gamma,0);
+//				}
+			
+			}
+							
+			window.ondeviceorientation = function(event) {
+				rotationAlpha = roundNumber(event.alpha,1);
+				rotationBeta = roundNumber(event.beta,1);
+				rotationGamma = roundNumber(event.gamma,1);
+			}				
+			
+		} 
+	  
+  }
+  <!-- end of get acceleration function  -->
+  
+  
+  
+ <!-- send message function  -->
+ 
+ function sendMsg() {
+locations.locations[j] = {"latitude": latitude, "longitude": longitude, "speed": speed, "accelerationX": accelerationX, "accelerationY": accelerationY, "accelerationZ": accelerationZ, "rotationAlpha": rotationAlpha,"rotationBeta": rotationBeta,"rotationGamma": rotationGamma, "tid": tid };
+j++;
+ if (j>=packSize){ 
+ j=0;
+ WsClient.send(JSON.stringify(locations));
+ locations = {"locations": [   ]};
+}else{ 
+t2 = setTimeout("sendMsg()",step);
+ }}
+ <!-- end of send message function  -->
+    
+     
+    
+ <!-- function to connect through WebSocket  -->   
+ 
+  function connect(servURI1) {
+     // Init Web Socket connect
+     WsClient = new WebSocket(servURI1);
+ 
+     WsClient.onopen = function (evt) {
+ 		WsClient.send("hello");
+ 
+         console.log('Successfully connected to WebSocket server.');
+     };
+     WsClient.onclose = function (evt) {
+         console.log('Connection closed.');
+     };
+     WsClient.onmessage = function (evt) {
+     	if (tid == "undefined1")
+     	{tid = evt.data;
+     	};
+     	if (evt.data == "Bye!")
+     	WsClient.close();
+     	else{
+     	 j=0;
+     	 sendMsg();
+        }
+     };
+     WsClient.onerror = function (evt) {
+         console.log("An error occured: " + evt.data);
+     };
+     
+ };
+ 
+ <!--end of WebSocket function code  -->    
+ 
+ 
+ <!-- function to disconnect from WebSocket  -->  
+ 
+ function disconnect() {
+ if (WsClient!=null) {
+ WsClient.send("quit"+" "+tid);
+ WsClient.close();
+  }
+ };
+  
+ <!--end of WebSocket disconnection code  --> 
+ 
+ 
+ <!-- refresh marker code -->
+ function markRefresh(){
+	 
+ if (ft == 0){
+ latitude2 = latitude;
+ longitude2 = longitude;
+ }
+ ft++;
+ if ((latitude2!=latitude)||(longitude2!=longitude)){
+ 
+ latitude2 = latitude;
+ longitude2 = longitude;
+ pos = new google.maps.LatLng(latitude2, longitude2);
+        if (markImage == "STILL"){
+        markImage = "MOVE";
+        // change marker image code ...
+        }
+        if (markImage != "CLICKED"){
+        marker.setMap(null);
+        marker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          icon: image,
+          title: 'Click to see information'
+        });
+        }
+        console.log("mia xara paizei...");
+    }
+    else{
+    if (markImage == "MOVE"){
+        markImage = "STILL";
+        // change marker image code ...
+        }
+    pos = new google.maps.LatLng(latitude, longitude);
+    if (markImage != "CLICKED") {
+    marker.setMap(null);
+    marker = new google.maps.Marker({
+      position: pos,
+      map: map,
+      title: 'Click to see information'
+    });
+    }
+    ;}
+ 
+ //---------infowindow content--------------------
+ var contentString = '<div id="content">'+
+   '<div id="siteNotice">'+
+   '</div>'+
+   '<h2 id="firstHeading" class="firstHeading">Information</h2>'+
+   '<div id="bodyContent">'+
+   '<p><b>Latitude:</b>'+ latitude +
+   '<p><b>Longitude:</b>'+ longitude +
+   '<p><b>Speed:</b>'+ speed +
+   '<p><b>AccelerationX:</b>'+ accelerationX +
+   '<p><b>AccelerationY:</b>'+ accelerationY +
+   '<p><b>AccelerationZ:</b>'+ accelerationZ +
+   '<p><b>RotationAlpha:</b>'+ rotationAlpha +
+   '<p><b>RotationBeta:</b>'+ rotationBeta +
+   '<p><b>RotationGamma:</b>'+ rotationGamma +
+   '<p><b>TID:</b>'+ tid +
+   '</div>'+
+   '</div>';
+
+google.maps.event.addListener(marker, 'click', function() {
+	infowindow = new google.maps.InfoWindow({
+		   content: contentString
+});
+ infowindow.open(map,marker);
+ markImage = "CLICKED";
+});
+
+if (markImage == "CLICKED") {
+google.maps.event.addListener(infowindow, 'closeclick', function() {
+	infowindow.close(); 
+	markImage = "UNCLICKED";
+	});
+	
+}
+        t4 = setTimeout("markRefresh()",1000);
+}
+ 
+ <!-- end of refresh marker code -->   
+    
+ 
+ 
+ <!-- Google Map function code  -->   
+     
+      function initialize() { 
+       if ((latitude == "undefined2")||(longitude == "undefined3")) {
+       if (pi==0){
+       getPosition();
+       getAcceleration();
+       pi++;
+       }
+       t3 = setTimeout("initialize()",1000);  
+       }
+       else{        
+      var myOptions = {
+          center: new google.maps.LatLng(latitude, longitude),
+          zoom: 7,
+          mapTypeId: google.maps.MapTypeId.ROADMAP
+        };
+        map = new google.maps.Map(document.getElementById("map_canvas"),
+            myOptions);
+
+pos = new google.maps.LatLng(latitude, longitude)
+        marker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          title: 'Click to zoom'
+        });
+markRefresh();
+ }
+ }
+ 
+ <!-- End of Google Map function code  -->
+ 
+ 
+  <!-- initialization function  -->
+<!--
+  function start(){
+ 
+  connect(); 
+  initialize(); 
+  
+ };
+  -->  
+  <!-- End of initialization function  -->
+ 
+    </script>
+  </head>
+  
+  <body onload="initialize()">
+  
+  <p id="demo2"> </p>
+  <p id="demo3"> </p>
+  <p id="demo"> </p>
+  
+    <div id="map_canvas" style="width:100%; height:100%"></div>
+    
+  <!--GEOLOCATION CODE  -->
+ 
+
+<!--end of GEOLOCATION CODE  -->
+
+
+<!-- Websocket buttons -->
+
+<form>
+Server URI: <input type="text" size="50" value="ws://localhost:9000/helloSocket" id="txt" />
+<input type="button" value="Start sending information!" onclick="connect(txt.value)" />
+<input type="button" value="Stop sending information!" onclick="disconnect()" />
+</form>
+
+<!-- end of Websocket buttons -->
+
+  </br>
+     
+  </body>
+</html>
